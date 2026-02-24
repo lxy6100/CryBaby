@@ -49,3 +49,7 @@ python -m http.server 8000
    - 确认 `index.html` 位于仓库根目录。
    - 确认资源路径使用相对路径（本项目已使用 `./main.js` / `./style.css`）。
    - 首次发布可能需要几分钟生效。
+
+4. **控制台报错 `Failed to resolve module specifier 'three'`**
+   - 说明 Three.js 的 CDN import 没有改全。
+   - 全局搜索 `from "three"` / `from "three/..."`，确保通过 CDN URL 或 importmap 正确映射后再发布。

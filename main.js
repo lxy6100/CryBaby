@@ -1,5 +1,5 @@
-import * as THREE from 'https://unpkg.com/three@0.165.0/build/three.module.js';
-import { OrbitControls } from 'https://unpkg.com/three@0.165.0/examples/jsm/controls/OrbitControls.js';
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 const PRESETS = [
   {
@@ -75,16 +75,23 @@ const ui = {
 };
 
 function initScene() {
+  const container = document.getElementById('scene-wrap');
   const canvas = document.getElementById('three-canvas');
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
+  const initialW = canvas.clientWidth || container.clientWidth || window.innerWidth;
+  const initialH = canvas.clientHeight || container.clientHeight || window.innerHeight;
+  renderer.setSize(initialW, initialH, false);
   renderer.shadowMap.enabled = true;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  if (!canvas.parentElement) {
+    container.appendChild(renderer.domElement);
+  }
 
   scene = new THREE.Scene();
-  camera = new THREE.PerspectiveCamera(42, canvas.clientWidth / canvas.clientHeight, 0.1, 100);
+  camera = new THREE.PerspectiveCamera(42, initialW / initialH, 0.1, 100);
   camera.position.set(0, 1.8, 4.6);
+  camera.lookAt(0, 1.2, 0);
 
   controls = new OrbitControls(camera, canvas);
   controls.enableDamping = true;
