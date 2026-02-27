@@ -1,4 +1,4 @@
-console.log("[boot] main.js loaded");
+console.log('[boot] main.js loaded');
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js';
 
@@ -22,8 +22,7 @@ const state = {
   phase: 'action',
   elapsed: 0,
   blink: 1,
-  bodyTurn: 0,
-  neutralBlend: 1
+  bodyTurn: 0
 };
 
 let scene;
@@ -32,21 +31,6 @@ let renderer;
 let controls;
 let clock;
 let baymax;
-
-const neutralPose = {
-  shoulderL: { x: 0, y: 0, z: 0.22 },
-  shoulderR: { x: 0, y: 0, z: -0.22 },
-  elbowL: { x: 0, y: 0, z: 0 },
-  elbowR: { x: 0, y: 0, z: 0 },
-  hipL: { x: 0, y: 0, z: 0.06 },
-  hipR: { x: 0, y: 0, z: -0.06 },
-  kneeL: { x: 0, y: 0, z: 0 },
-  kneeR: { x: 0, y: 0, z: 0 },
-  bodyRot: { x: 0, y: 0, z: 0 },
-  headRot: { x: 0, y: 0, z: 0 },
-  rootY: 0,
-  rootYaw: 0
-};
 
 const ui = {
   baseColor: document.getElementById('base-color'),
@@ -59,12 +43,41 @@ const ui = {
   presetButtons: document.getElementById('preset-buttons')
 };
 
+const neutralPose = {
+  shoulderL: { x: 0.1, y: -0.08, z: 0.26 },
+  shoulderR: { x: 0.1, y: 0.08, z: -0.26 },
+  elbowL: { x: 0.17 },
+  elbowR: { x: 0.17 },
+  hipL: { x: 0.05, y: 0, z: 0.08 },
+  hipR: { x: 0.05, y: 0, z: -0.08 },
+  kneeL: { x: -0.12 },
+  kneeR: { x: -0.12 },
+  body: { x: 0, y: 0, z: 0 },
+  head: { x: 0, y: 0, z: 0 },
+  rootY: 0,
+  rootYaw: 0
+};
+
+const torsoCollider = {
+  center: new THREE.Vector3(0, 1.36, 0.03),
+  radii: new THREE.Vector3(0.92, 1.08, 0.8)
+};
+
+const armMeta = {
+  L: { shoulderPos: new THREE.Vector3(-0.95, 1.62, 0.08), sideSign: -1, outMin: 0.08, yawMin: -1.05, yawMax: 0.24 },
+  R: { shoulderPos: new THREE.Vector3(0.95, 1.62, 0.08), sideSign: 1, outMin: -0.08, yawMin: -0.24, yawMax: 1.05 }
+};
+
+function clampAngle(v, min, max) {
+  return THREE.MathUtils.clamp(v, min, max);
+}
+
 function makeBodyMaterial(color) {
   return new THREE.MeshPhysicalMaterial({
     color,
-    roughness: 0.52,
+    roughness: 0.64,
     metalness: 0,
-    clearcoat: 0.18,
+    clearcoat: 0.34,
     clearcoatRoughness: 0.64
   });
 }
@@ -72,61 +85,53 @@ function makeBodyMaterial(color) {
 function initScene() {
   const container = document.getElementById('scene-wrap');
   const canvas = document.getElementById('three-canvas');
+
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   const width = canvas.clientWidth || container.clientWidth || window.innerWidth;
   const height = canvas.clientHeight || container.clientHeight || window.innerHeight;
   renderer.setSize(width, height, false);
-  if (!renderer.domElement.parentElement) {
-    container.appendChild(renderer.domElement);
-  }
   renderer.shadowMap.enabled = true;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  if (!renderer.domElement.parentElement) container.appendChild(renderer.domElement);
 
   scene = new THREE.Scene();
+
   camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 100);
-  camera.position.set(0, 1.7, 4.3);
-  camera.lookAt(0, 1.05, 0);
+  camera.position.set(0, 1.9, 4.6);
+  camera.lookAt(0, 1.25, 0);
 
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
-  controls.target.set(0, 1.05, 0);
-  controls.minDistance = 2.1;
-  controls.maxDistance = 7.2;
+  controls.target.set(0, 1.25, 0);
+  controls.minDistance = 2.2;
+  controls.maxDistance = 7.6;
 
-  const hemi = new THREE.HemisphereLight(0xffffff, 0x8393a1, 0.9);
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x95a7b8, 0.86);
   scene.add(hemi);
 
-  const key = new THREE.DirectionalLight(0xffffff, 1.1);
-  key.position.set(2.8, 4.2, 2.2);
+  const key = new THREE.DirectionalLight(0xffffff, 1.18);
+  key.position.set(2.8, 4.5, 2.4);
   key.castShadow = true;
-  key.shadow.mapSize.set(1024, 1024);
-  key.shadow.camera.left = -4;
-  key.shadow.camera.right = 4;
-  key.shadow.camera.top = 4;
-  key.shadow.camera.bottom = -4;
+  key.shadow.mapSize.set(2048, 2048);
+  key.shadow.camera.left = -5;
+  key.shadow.camera.right = 5;
+  key.shadow.camera.top = 5;
+  key.shadow.camera.bottom = -5;
   scene.add(key);
 
-  const fill = new THREE.DirectionalLight(0xdde8f4, 0.5);
-  fill.position.set(-3, 2.4, -2.2);
+  const fill = new THREE.DirectionalLight(0xdce9f8, 0.46);
+  fill.position.set(-3.4, 2.4, -2.4);
   scene.add(fill);
 
   const floor = new THREE.Mesh(
-    new THREE.CircleGeometry(3.8, 72),
-    new THREE.MeshStandardMaterial({ color: '#d3dde6', roughness: 0.95, metalness: 0 })
+    new THREE.CircleGeometry(4.2, 96),
+    new THREE.MeshStandardMaterial({ color: '#cdd8e2', roughness: 0.95, metalness: 0 })
   );
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = -0.02;
   floor.receiveShadow = true;
   scene.add(floor);
-
-  const debugCube = new THREE.Mesh(
-    new THREE.BoxGeometry(0.32, 0.32, 0.32),
-    new THREE.MeshStandardMaterial({ color: '#45d46a' })
-  );
-  debugCube.position.set(-1.3, 0.45, 0.2);
-  debugCube.castShadow = true;
-  scene.add(debugCube);
 
   baymax = createBaymax();
   scene.add(baymax.root);
@@ -137,71 +142,73 @@ function initScene() {
 
 function createBaymax() {
   const root = new THREE.Group();
-  root.position.y = 0.02;
 
   const bodyMat = makeBodyMaterial(state.params.baseColor);
-  const eyeMat = new THREE.MeshStandardMaterial({ color: state.params.eyeColor, roughness: 0.2, metalness: 0.05 });
-  const lineMat = new THREE.MeshStandardMaterial({ color: state.params.eyeColor, roughness: 0.25, metalness: 0.05 });
+  const eyeMat = new THREE.MeshBasicMaterial({ color: state.params.eyeColor });
   const badgeMat = new THREE.MeshStandardMaterial({ color: state.params.badgeColor, roughness: 0.5, metalness: 0.02 });
 
   const pelvis = new THREE.Group();
-  pelvis.position.y = 0.78;
+  pelvis.position.y = 0.84;
   root.add(pelvis);
 
   const bodyGroup = new THREE.Group();
-  bodyGroup.position.y = 0.52;
+  bodyGroup.position.y = 0.5;
   pelvis.add(bodyGroup);
 
-  const torso = new THREE.Mesh(new THREE.SphereGeometry(0.95, 48, 40), bodyMat);
-  torso.scale.set(1.0, 1.16, 0.92);
+  const torso = new THREE.Mesh(new THREE.SphereGeometry(1, 56, 46), bodyMat);
+  torso.scale.set(1.0, 1.2, 0.9);
   torso.castShadow = true;
   torso.receiveShadow = true;
   bodyGroup.add(torso);
 
   const chestLine = new THREE.Mesh(
-    new THREE.TorusGeometry(0.67, 0.008, 10, 80),
-    new THREE.MeshStandardMaterial({ color: '#d8dce0', roughness: 0.8, metalness: 0 })
+    new THREE.TorusGeometry(0.68, 0.009, 12, 100),
+    new THREE.MeshStandardMaterial({ color: '#dfe4ea', roughness: 0.8, metalness: 0 })
   );
   chestLine.rotation.x = Math.PI / 2;
-  chestLine.position.set(0, 0.29, 0);
+  chestLine.position.set(0, 0.34, 0.01);
   bodyGroup.add(chestLine);
 
-  const badge = new THREE.Mesh(new THREE.CircleGeometry(0.09, 32), badgeMat);
-  badge.position.set(0.28, 0.3, 0.78);
+  const badge = new THREE.Mesh(new THREE.CircleGeometry(0.08, 30), badgeMat);
+  badge.position.set(0.3, 0.32, 0.81);
   badge.visible = state.params.showBadge;
   bodyGroup.add(badge);
 
   const headPivot = new THREE.Group();
-  headPivot.position.y = 1.5;
+  headPivot.position.y = 1.58;
   pelvis.add(headPivot);
 
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.35, 32, 24), bodyMat);
-  head.scale.set(1.26, 0.83, 0.98);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.34, 36, 26), bodyMat);
+  head.scale.set(1.28, 0.82, 0.98);
   head.castShadow = true;
   headPivot.add(head);
 
-  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.028, 16, 16), eyeMat);
+  const eyeSpacing = 0.112;
+  const eyeZ = 0.305;
+  const eyeY = 0.02;
+  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.026, 16, 16), eyeMat);
   const eyeR = eyeL.clone();
-  eyeL.position.set(-0.11, 0.01, 0.29);
-  eyeR.position.set(0.11, 0.01, 0.29);
+  eyeL.position.set(-eyeSpacing, eyeY, eyeZ);
+  eyeR.position.set(eyeSpacing, eyeY, eyeZ);
   headPivot.add(eyeL, eyeR);
 
-  const eyeBridge = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.2, 12), lineMat);
+  const eyeBridge = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, eyeSpacing * 2, 10), eyeMat);
   eyeBridge.rotation.z = Math.PI / 2;
-  eyeBridge.position.set(0, 0.01, 0.29);
+  eyeBridge.position.set(0, eyeY, eyeZ + 0.002);
   headPivot.add(eyeBridge);
 
+  // 1) 手臂枢轴与 neutral pose 设置：肩枢轴贴体外侧略前，前臂与手掌按层级挂接
   const shoulderL = new THREE.Group();
   const shoulderR = new THREE.Group();
-  shoulderL.position.set(-0.8, 1.22, 0);
-  shoulderR.position.set(0.8, 1.22, 0);
+  shoulderL.position.copy(armMeta.L.shoulderPos);
+  shoulderR.position.copy(armMeta.R.shoulderPos);
   pelvis.add(shoulderL, shoulderR);
 
-  const upperArmGeo = new THREE.CapsuleGeometry(0.16, 0.72, 8, 18);
-  const foreArmGeo = new THREE.CapsuleGeometry(0.14, 0.62, 8, 16);
+  const upperArmGeo = new THREE.CapsuleGeometry(0.13, 0.66, 9, 18);
+  const foreArmGeo = new THREE.CapsuleGeometry(0.115, 0.58, 9, 18);
 
   const upperArmL = new THREE.Mesh(upperArmGeo, bodyMat);
-  upperArmL.position.y = -0.46;
+  upperArmL.position.y = -0.44;
   upperArmL.castShadow = true;
   shoulderL.add(upperArmL);
 
@@ -210,23 +217,23 @@ function createBaymax() {
 
   const elbowL = new THREE.Group();
   const elbowR = new THREE.Group();
-  elbowL.position.y = -0.9;
-  elbowR.position.y = -0.9;
+  elbowL.position.y = -0.86;
+  elbowR.position.y = -0.86;
   shoulderL.add(elbowL);
   shoulderR.add(elbowR);
 
   const foreArmL = new THREE.Mesh(foreArmGeo, bodyMat);
-  foreArmL.position.y = -0.38;
+  foreArmL.position.y = -0.35;
   foreArmL.castShadow = true;
   elbowL.add(foreArmL);
 
   const foreArmR = foreArmL.clone();
   elbowR.add(foreArmR);
 
-  const handGeo = new THREE.SphereGeometry(0.17, 24, 20);
+  const handGeo = new THREE.SphereGeometry(0.165, 24, 20);
   const handL = new THREE.Mesh(handGeo, bodyMat);
-  handL.scale.set(1.05, 0.92, 1.12);
-  handL.position.y = -0.76;
+  handL.scale.set(1.02, 0.9, 1.08);
+  handL.position.y = -0.72;
   handL.castShadow = true;
   elbowL.add(handL);
 
@@ -235,15 +242,15 @@ function createBaymax() {
 
   const hipL = new THREE.Group();
   const hipR = new THREE.Group();
-  hipL.position.set(-0.36, 0.02, 0);
-  hipR.position.set(0.36, 0.02, 0);
+  hipL.position.set(-0.35, 0.02, 0);
+  hipR.position.set(0.35, 0.02, 0);
   pelvis.add(hipL, hipR);
 
-  const thighGeo = new THREE.CapsuleGeometry(0.2, 0.44, 8, 14);
-  const shinGeo = new THREE.CapsuleGeometry(0.18, 0.33, 8, 14);
+  const thighGeo = new THREE.CapsuleGeometry(0.185, 0.26, 8, 14);
+  const shinGeo = new THREE.CapsuleGeometry(0.168, 0.24, 8, 14);
 
   const thighL = new THREE.Mesh(thighGeo, bodyMat);
-  thighL.position.y = -0.36;
+  thighL.position.y = -0.25;
   thighL.castShadow = true;
   hipL.add(thighL);
 
@@ -252,33 +259,34 @@ function createBaymax() {
 
   const kneeL = new THREE.Group();
   const kneeR = new THREE.Group();
-  kneeL.position.y = -0.74;
-  kneeR.position.y = -0.74;
-  hipL.add(kneeL, kneeR);
+  kneeL.position.y = -0.52;
+  kneeR.position.y = -0.52;
+  hipL.add(kneeL);
+  hipR.add(kneeR);
 
   const shinL = new THREE.Mesh(shinGeo, bodyMat);
-  shinL.position.y = -0.25;
+  shinL.position.y = -0.22;
   shinL.castShadow = true;
   kneeL.add(shinL);
 
   const shinR = shinL.clone();
   kneeR.add(shinR);
 
-  const footGeo = new THREE.SphereGeometry(0.23, 28, 20);
+  const footGeo = new THREE.SphereGeometry(0.21, 26, 18);
   const footL = new THREE.Mesh(footGeo, bodyMat);
-  footL.scale.set(1.45, 0.62, 1.7);
-  footL.position.set(0, -0.5, 0.13);
+  footL.scale.set(1.42, 0.58, 1.62);
+  footL.position.set(0, -0.45, 0.12);
   footL.castShadow = true;
-  footL.rotation.y = 0.08;
+  footL.rotation.y = 0.05;
   kneeL.add(footL);
 
   const footR = footL.clone();
-  footR.rotation.y = -0.08;
+  footR.rotation.y = -0.05;
   kneeR.add(footR);
 
   const heart = createHeartMesh();
   heart.visible = false;
-  heart.position.set(0, 1.26, 0.9);
+  heart.position.set(0, 1.28, 0.95);
   pelvis.add(heart);
 
   return {
@@ -296,7 +304,8 @@ function createBaymax() {
     kneeR,
     heart,
     badge,
-    materials: { bodyMat, eyeMat, lineMat, badgeMat }
+    eyeMat,
+    materials: { bodyMat, badgeMat }
   };
 }
 
@@ -311,21 +320,20 @@ function createHeartMesh() {
   const mat = new THREE.MeshStandardMaterial({
     color: '#ff6fa8',
     emissive: '#ff4f96',
-    emissiveIntensity: 0.6,
+    emissiveIntensity: 0.62,
     transparent: true,
     opacity: 0.9,
     side: THREE.DoubleSide
   });
   const mesh = new THREE.Mesh(geo, mat);
-  mesh.scale.setScalar(0.42);
+  mesh.scale.setScalar(0.4);
   return mesh;
 }
 
 function applyParams(syncUI = true) {
   const p = state.params;
   baymax.materials.bodyMat.color.set(p.baseColor);
-  baymax.materials.eyeMat.color.set(p.eyeColor);
-  baymax.materials.lineMat.color.set(p.eyeColor);
+  baymax.eyeMat.color.set(p.eyeColor);
   baymax.materials.badgeMat.color.set(p.badgeColor);
   baymax.badge.visible = p.showBadge;
 
@@ -341,118 +349,174 @@ function setAction(action) {
   if (state.targetAction === action) return;
   state.targetAction = action;
   state.phase = 'toNeutral';
-  state.neutralBlend = 0;
 }
 
 function damp(current, target, speed, dt) {
   return THREE.MathUtils.lerp(current, target, 1 - Math.exp(-speed * dt));
 }
 
-function dampRotation(group, target, dt, speed = 10) {
-  group.rotation.x = damp(group.rotation.x, target.x, speed, dt);
-  group.rotation.y = damp(group.rotation.y, target.y, speed, dt);
-  group.rotation.z = damp(group.rotation.z, target.z, speed, dt);
+function makePose() {
+  return JSON.parse(JSON.stringify(neutralPose));
 }
 
-function applyNeutral(dt) {
-  dampRotation(baymax.shoulderL, neutralPose.shoulderL, dt);
-  dampRotation(baymax.shoulderR, neutralPose.shoulderR, dt);
-  dampRotation(baymax.elbowL, neutralPose.elbowL, dt);
-  dampRotation(baymax.elbowR, neutralPose.elbowR, dt);
-  dampRotation(baymax.hipL, neutralPose.hipL, dt);
-  dampRotation(baymax.hipR, neutralPose.hipR, dt);
-  dampRotation(baymax.kneeL, neutralPose.kneeL, dt);
-  dampRotation(baymax.kneeR, neutralPose.kneeR, dt);
-  dampRotation(baymax.bodyGroup, neutralPose.bodyRot, dt, 7);
-  dampRotation(baymax.headPivot, neutralPose.headRot, dt, 7);
+function applyActionPose(pose, action, t) {
+  if (action === 'wave') {
+    pose.shoulderR.x = -1.15;
+    pose.shoulderR.z = -0.34;
+    pose.shoulderR.y = 0.26;
+    pose.elbowR.x = 0.9;
+    pose.shoulderL.z = 0.3;
+    pose.head.y = Math.sin(t * 2.5) * 0.08;
+  }
 
-  baymax.root.position.y = damp(baymax.root.position.y, neutralPose.rootY, 8, dt);
-  state.bodyTurn = damp(state.bodyTurn, neutralPose.rootYaw, 8, dt);
-  baymax.root.rotation.y = state.bodyTurn;
+  if (action === 'heart') {
+    pose.shoulderL.x = -0.78;
+    pose.shoulderR.x = -0.78;
+    pose.shoulderL.y = -0.14;
+    pose.shoulderR.y = 0.14;
+    pose.shoulderL.z = 0.34;
+    pose.shoulderR.z = -0.34;
+    pose.elbowL.x = 1.28;
+    pose.elbowR.x = 1.28;
+    pose.body.x = 0.04;
+  }
 
-  const score =
-    Math.abs(baymax.shoulderL.rotation.z - neutralPose.shoulderL.z) +
-    Math.abs(baymax.shoulderR.rotation.z - neutralPose.shoulderR.z) +
-    Math.abs(baymax.bodyGroup.rotation.z) +
-    Math.abs(baymax.headPivot.rotation.x) +
-    Math.abs(baymax.root.rotation.y);
+  if (action === 'dance') {
+    pose.body.z = Math.sin(t * 2.2) * 0.22;
+    pose.head.y = Math.sin(t * 2.2) * 0.24;
+    pose.shoulderL.z = 0.34 + Math.sin(t * 4.3) * 0.36;
+    pose.shoulderR.z = -0.34 - Math.sin(t * 4.3 + 0.8) * 0.36;
+    pose.hipL.x = 0.06 + Math.sin(t * 3.2) * 0.18;
+    pose.hipR.x = 0.06 + Math.sin(t * 3.2 + Math.PI) * 0.18;
+    pose.rootY = Math.abs(Math.sin(t * 3.2)) * 0.05;
+  }
 
-  return score < 0.05;
+  if (action === 'spin') {
+    pose.rootYaw = (t * 0.85) % (Math.PI * 2);
+    pose.head.y = Math.sin(t * 1.1) * 0.14;
+  }
+
+  if (action === 'hug') {
+    pose.shoulderL.x = -0.72;
+    pose.shoulderR.x = -0.72;
+    pose.shoulderL.z = 0.28;
+    pose.shoulderR.z = -0.28;
+    pose.shoulderL.y = -0.18;
+    pose.shoulderR.y = 0.18;
+    pose.elbowL.x = 1.18;
+    pose.elbowR.x = 1.18;
+    pose.body.x = 0.13;
+    pose.head.x = -0.07;
+  }
+
+  if (action === 'comfort') {
+    pose.head.x = Math.sin(t * 3) * 0.16;
+    pose.shoulderR.x = -0.6;
+    pose.elbowR.x = 0.84 + Math.sin(t * 3) * 0.2;
+    pose.shoulderL.z = 0.27;
+    pose.body.z = Math.sin(t * 3) * 0.05;
+  }
+
+  return pose;
 }
 
-function runIdle(t, dt) {
-  baymax.root.position.y += Math.sin(t * 2.1) * 0.0008;
-  baymax.bodyGroup.scale.y = 1 + Math.sin(t * 2.1) * 0.015;
-  baymax.bodyGroup.rotation.z += Math.sin(t * 1.3) * 0.0008;
-  baymax.headPivot.rotation.y += Math.sin(t * 0.8) * 0.0012;
+function getLimbSamples(side, shoulderRot, elbowRot) {
+  const meta = armMeta[side];
+  const shoulder = meta.shoulderPos.clone();
+  const upperLen = 0.78;
+  const foreLen = 0.72;
 
-  if (Math.sin(t * 2.9) > 0.992) state.blink = 0.2;
-  state.blink = damp(state.blink, 1, 14, dt);
-  const eyeScale = THREE.MathUtils.clamp(state.blink, 0.2, 1);
-  baymax.materials.eyeMat.emissiveIntensity = 0;
-  baymax.headPivot.children.forEach((obj) => {
-    if (obj.geometry && obj.geometry.type === 'SphereGeometry' && obj.material === baymax.materials.eyeMat) {
-      obj.scale.y = eyeScale;
+  const upperDir = new THREE.Vector3(0, -1, 0).applyEuler(new THREE.Euler(shoulderRot.x, shoulderRot.y, shoulderRot.z, 'XYZ'));
+  const elbowPos = shoulder.clone().addScaledVector(upperDir, upperLen);
+  const foreDir = new THREE.Vector3(0, -1, 0).applyEuler(
+    new THREE.Euler(shoulderRot.x + elbowRot.x * 0.88, shoulderRot.y, shoulderRot.z, 'XYZ')
+  );
+
+  const wristPos = elbowPos.clone().addScaledVector(foreDir, foreLen);
+
+  return [
+    shoulder.clone().lerp(elbowPos, 0.3),
+    shoulder.clone().lerp(elbowPos, 0.7),
+    elbowPos.clone().lerp(wristPos, 0.33),
+    elbowPos.clone().lerp(wristPos, 0.66),
+    wristPos
+  ];
+}
+
+function isInsideTorso(point) {
+  const d = point.clone().sub(torsoCollider.center);
+  const q = (d.x * d.x) / (torsoCollider.radii.x * torsoCollider.radii.x)
+          + (d.y * d.y) / (torsoCollider.radii.y * torsoCollider.radii.y)
+          + (d.z * d.z) / (torsoCollider.radii.z * torsoCollider.radii.z);
+  return q < 1;
+}
+
+// 2) 关节约束 clamp：肩/肘角度范围与内收限制，避免反折和向体内卷入
+function applyArmConstraints(side, pose) {
+  const shoulder = side === 'L' ? pose.shoulderL : pose.shoulderR;
+  const elbow = side === 'L' ? pose.elbowL : pose.elbowR;
+  const meta = armMeta[side];
+
+  shoulder.x = clampAngle(shoulder.x, -1.35, 0.9);
+  shoulder.y = clampAngle(shoulder.y, meta.yawMin, meta.yawMax);
+  shoulder.z = side === 'L' ? clampAngle(shoulder.z, meta.outMin, 1.25) : clampAngle(shoulder.z, -1.25, meta.outMin);
+  elbow.x = clampAngle(elbow.x, 0, 2.05);
+
+  // 3) 简易碰撞（椭球检测 + push-out）：采样手臂点进入躯干则向外推回
+  for (let i = 0; i < 4; i++) {
+    const samples = getLimbSamples(side, shoulder, elbow);
+    const hit = samples.some(isInsideTorso);
+    if (!hit) break;
+
+    if (side === 'L') {
+      shoulder.y -= 0.08;
+      shoulder.z += 0.05;
+    } else {
+      shoulder.y += 0.08;
+      shoulder.z -= 0.05;
     }
-  });
+    shoulder.x += 0.04;
+
+    shoulder.x = clampAngle(shoulder.x, -1.35, 0.9);
+    shoulder.y = clampAngle(shoulder.y, meta.yawMin, meta.yawMax);
+    shoulder.z = side === 'L' ? clampAngle(shoulder.z, meta.outMin, 1.25) : clampAngle(shoulder.z, -1.25, meta.outMin);
+  }
 }
 
-function runWave(t) {
-  baymax.shoulderR.rotation.x = -1.2;
-  baymax.shoulderR.rotation.z = -0.45;
-  baymax.elbowR.rotation.x = -0.58;
-  baymax.elbowR.rotation.y = Math.sin(t * 5.5) * 0.45;
-  baymax.headPivot.rotation.y = Math.sin(t * 2.6) * 0.08;
-}
+function applyPose(pose, dt) {
+  applyArmConstraints('L', pose);
+  applyArmConstraints('R', pose);
 
-function runHeart(t) {
-  baymax.shoulderL.rotation.x = -0.9;
-  baymax.shoulderR.rotation.x = -0.9;
-  baymax.shoulderL.rotation.z = 0.2;
-  baymax.shoulderR.rotation.z = -0.2;
-  baymax.elbowL.rotation.x = -1.15;
-  baymax.elbowR.rotation.x = -1.15;
-  baymax.elbowL.rotation.y = 0.24;
-  baymax.elbowR.rotation.y = -0.24;
-  baymax.heart.visible = true;
-  const pulse = 1 + Math.sin(t * 6) * 0.13;
-  baymax.heart.scale.setScalar(0.42 * pulse);
-  baymax.heart.material.opacity = 0.62 + 0.25 * (Math.sin(t * 6) * 0.5 + 0.5);
-}
+  baymax.shoulderL.rotation.x = damp(baymax.shoulderL.rotation.x, pose.shoulderL.x, 10, dt);
+  baymax.shoulderL.rotation.y = damp(baymax.shoulderL.rotation.y, pose.shoulderL.y, 10, dt);
+  baymax.shoulderL.rotation.z = damp(baymax.shoulderL.rotation.z, pose.shoulderL.z, 10, dt);
 
-function runDance(t) {
-  baymax.bodyGroup.rotation.z = Math.sin(t * 2.1) * 0.2;
-  baymax.headPivot.rotation.y = Math.sin(t * 2.1) * 0.25;
-  baymax.shoulderL.rotation.z = 0.5 + Math.sin(t * 4.2) * 0.55;
-  baymax.shoulderR.rotation.z = -0.5 - Math.sin(t * 4.2 + 1) * 0.55;
-  baymax.hipL.rotation.x = Math.sin(t * 3) * 0.22;
-  baymax.hipR.rotation.x = Math.sin(t * 3 + Math.PI) * 0.22;
-  baymax.root.position.y = 0.02 + Math.abs(Math.sin(t * 3.1)) * 0.06;
-}
+  baymax.shoulderR.rotation.x = damp(baymax.shoulderR.rotation.x, pose.shoulderR.x, 10, dt);
+  baymax.shoulderR.rotation.y = damp(baymax.shoulderR.rotation.y, pose.shoulderR.y, 10, dt);
+  baymax.shoulderR.rotation.z = damp(baymax.shoulderR.rotation.z, pose.shoulderR.z, 10, dt);
 
-function runSpin(t) {
-  state.bodyTurn = (t * 0.85) % (Math.PI * 2);
+  baymax.elbowL.rotation.x = damp(baymax.elbowL.rotation.x, pose.elbowL.x, 12, dt);
+  baymax.elbowR.rotation.x = damp(baymax.elbowR.rotation.x, pose.elbowR.x, 12, dt);
+
+  baymax.hipL.rotation.x = damp(baymax.hipL.rotation.x, pose.hipL.x, 8, dt);
+  baymax.hipR.rotation.x = damp(baymax.hipR.rotation.x, pose.hipR.x, 8, dt);
+  baymax.hipL.rotation.z = damp(baymax.hipL.rotation.z, pose.hipL.z, 8, dt);
+  baymax.hipR.rotation.z = damp(baymax.hipR.rotation.z, pose.hipR.z, 8, dt);
+
+  baymax.kneeL.rotation.x = damp(baymax.kneeL.rotation.x, pose.kneeL.x, 8, dt);
+  baymax.kneeR.rotation.x = damp(baymax.kneeR.rotation.x, pose.kneeR.x, 8, dt);
+
+  baymax.bodyGroup.rotation.x = damp(baymax.bodyGroup.rotation.x, pose.body.x, 7, dt);
+  baymax.bodyGroup.rotation.y = damp(baymax.bodyGroup.rotation.y, pose.body.y, 7, dt);
+  baymax.bodyGroup.rotation.z = damp(baymax.bodyGroup.rotation.z, pose.body.z, 7, dt);
+
+  baymax.headPivot.rotation.x = damp(baymax.headPivot.rotation.x, pose.head.x, 7, dt);
+  baymax.headPivot.rotation.y = damp(baymax.headPivot.rotation.y, pose.head.y, 7, dt);
+  baymax.headPivot.rotation.z = damp(baymax.headPivot.rotation.z, pose.head.z, 7, dt);
+
+  baymax.root.position.y = damp(baymax.root.position.y, pose.rootY, 8, dt);
+  state.bodyTurn = damp(state.bodyTurn, pose.rootYaw, 7, dt);
   baymax.root.rotation.y = state.bodyTurn;
-  baymax.headPivot.rotation.y = Math.sin(t * 1.2) * 0.12;
-}
-
-function runHug() {
-  baymax.shoulderL.rotation.x = -0.85;
-  baymax.shoulderR.rotation.x = -0.85;
-  baymax.shoulderL.rotation.z = 0.38;
-  baymax.shoulderR.rotation.z = -0.38;
-  baymax.elbowL.rotation.x = -0.95;
-  baymax.elbowR.rotation.x = -0.95;
-  baymax.bodyGroup.rotation.x = 0.12;
-  baymax.headPivot.rotation.x = -0.08;
-}
-
-function runComfort(t) {
-  baymax.headPivot.rotation.x = Math.sin(t * 3.1) * 0.18;
-  baymax.shoulderR.rotation.x = -0.72;
-  baymax.elbowR.rotation.x = -1.0 + Math.sin(t * 3.1) * 0.2;
-  baymax.shoulderL.rotation.z = 0.18;
-  baymax.bodyGroup.rotation.z = Math.sin(t * 3.1) * 0.04;
 }
 
 function animateLoop() {
@@ -461,27 +525,49 @@ function animateLoop() {
   const t = state.elapsed;
 
   controls.update();
-  runIdle(t, dt);
+
+  let pose = makePose();
+
+  pose.rootY += Math.sin(t * 2.1) * 0.015;
+  pose.body.z += Math.sin(t * 1.4) * 0.035;
+  pose.head.y += Math.sin(t * 0.9) * 0.08;
+
+  if (Math.sin(t * 2.9) > 0.992) state.blink = 0.2;
+  state.blink = damp(state.blink, 1, 14, dt);
+  const eyeScale = THREE.MathUtils.clamp(state.blink, 0.2, 1);
+  baymax.headPivot.children.forEach((obj) => {
+    if (obj.geometry && obj.geometry.type === 'SphereGeometry' && obj.material === baymax.eyeMat) {
+      obj.scale.y = eyeScale;
+    }
+  });
 
   if (state.phase === 'toNeutral') {
-    const done = applyNeutral(dt);
-    if (done) {
+    const totalDelta =
+      Math.abs(baymax.shoulderL.rotation.z - neutralPose.shoulderL.z)
+      + Math.abs(baymax.shoulderR.rotation.z - neutralPose.shoulderR.z)
+      + Math.abs(baymax.elbowL.rotation.x - neutralPose.elbowL.x)
+      + Math.abs(baymax.elbowR.rotation.x - neutralPose.elbowR.x)
+      + Math.abs(baymax.bodyGroup.rotation.x)
+      + Math.abs(baymax.bodyGroup.rotation.z)
+      + Math.abs(baymax.root.rotation.y);
+
+    if (totalDelta < 0.05) {
       state.currentAction = state.targetAction;
       state.phase = 'action';
     }
+  } else {
+    pose = applyActionPose(pose, state.currentAction, t);
   }
 
   baymax.heart.visible = false;
-
-  if (state.phase === 'action') {
-    if (state.currentAction === 'wave') runWave(t);
-    if (state.currentAction === 'heart') runHeart(t);
-    if (state.currentAction === 'dance') runDance(t);
-    if (state.currentAction === 'spin') runSpin(t);
-    if (state.currentAction === 'hug') runHug();
-    if (state.currentAction === 'comfort') runComfort(t);
-    if (state.currentAction === 'idle') applyNeutral(dt);
+  if (state.currentAction === 'heart' && state.phase === 'action') {
+    baymax.heart.visible = true;
+    const pulse = 1 + Math.sin(t * 6) * 0.12;
+    baymax.heart.scale.setScalar(0.4 * pulse);
+    baymax.heart.material.opacity = 0.66 + 0.26 * (Math.sin(t * 6) * 0.5 + 0.5);
   }
+
+  applyPose(pose, dt);
 
   renderer.render(scene, camera);
   requestAnimationFrame(animateLoop);
@@ -537,13 +623,14 @@ function bindUI() {
     scene.traverse((obj) => {
       if (obj.isMesh) {
         obj.castShadow = e.target.checked;
+        if (obj !== baymax.badge) obj.receiveShadow = e.target.checked;
       }
     });
   });
 
   ui.resetView.addEventListener('click', () => {
-    camera.position.set(0, 1.7, 4.3);
-    controls.target.set(0, 1.05, 0);
+    camera.position.set(0, 1.9, 4.6);
+    controls.target.set(0, 1.25, 0);
     controls.update();
   });
 
